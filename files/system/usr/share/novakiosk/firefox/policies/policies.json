@@ -1,0 +1,40 @@
+{
+  "policies": {
+    "AutofillAddressEnabled": false,
+    "AutofillCreditCardEnabled": false,
+    "BlockAboutConfig": true,
+    "DisableFormHistory": true,
+    "DisableDeveloperTools": true,
+    "DisableFeedbackCommands": true,
+    "DisableFirefoxAccounts": true,
+    "DisableFirefoxStudies": true,
+    "DisableMasterPasswordCreation": true,
+    "DisablePasswordReveal": true,
+    "DisablePocket": true,
+    "DisableTelemetry": true,
+    "OfferToSaveLogins": false,
+    "PasswordManagerEnabled": false,
+    "PrintingEnabled": true,
+    "Extensions": {
+      "Install": [
+        "https://addons.mozilla.org/firefox/downloads/file/4637154/istilldontcareaboutcookies-1.1.9.xpi"
+      ]
+    },
+    "Preferences": {
+      "browser.link.open_newwindow": {
+        "Value": 1,
+        "Status": "locked",
+        "Type": "number"
+      },
+      "browser.link.open_newwindow.restriction": {
+        "Value": 0,
+        "Status": "locked",
+        "Type": "number"
+      },
+      "widget.wayland.vsync.enabled": {
+        "Value": false,
+        "Status": "locked"
+      }
+    }
+  }
+}

@@ -1,0 +1,2 @@
+# Allow the kiosk user session (and the `ydotool` group) to access /dev/uinput (needed by ydotool/ydotoold).
+KERNEL=="uinput", SUBSYSTEM=="misc", TAG+="uaccess", GROUP="ydotool", MODE="0660", OPTIONS+="static_node=uinput"

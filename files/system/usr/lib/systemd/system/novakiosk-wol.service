@@ -1,0 +1,11 @@
+[Unit]
+Description=Enable Wake-on-LAN on boot
+After=NetworkManager.service
+Wants=NetworkManager.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/novakiosk/enable-wol.sh
+
+[Install]
+WantedBy=multi-user.target

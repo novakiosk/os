@@ -1,0 +1,11 @@
+[Unit]
+Description=Open firewall port for WayVNC
+After=firewalld.service
+Wants=firewalld.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/novakiosk/open-wayvnc-firewall.sh
+
+[Install]
+WantedBy=multi-user.target

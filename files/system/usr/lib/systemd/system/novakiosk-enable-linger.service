@@ -1,0 +1,12 @@
+[Unit]
+Description=Enable linger for kiosk user
+After=systemd-sysusers.service systemd-logind.service
+Wants=systemd-logind.service
+ConditionPathExists=!/var/lib/systemd/linger/kiosk
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/novakiosk/enable-linger.sh
+
+[Install]
+WantedBy=multi-user.target
