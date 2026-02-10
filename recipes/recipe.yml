@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=https://schema.blue-build.org/recipe-v1.json
 
-name: novakiosk-os
+name: os
 description: Basic Fedora Sway installation with required packages for supporting novakiosk and novakeys.
 
 base-image: ghcr.io/ublue-os/base-main
