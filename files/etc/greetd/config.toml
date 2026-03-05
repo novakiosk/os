@@ -6,5 +6,5 @@ command = "agreety -c sway"
 user = "greeter"
 
 [initial_session]
-command = "sway"
+command = "/usr/libexec/novakiosk/start-sway.sh"
 user = "kiosk"
