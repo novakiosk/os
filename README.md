@@ -10,6 +10,9 @@ with [novakeys](https://github.com/novakiosk/novakeys)).
 `novakiosk` communicates with a kiosk agent running on the kiosk machine; 
 this image provides the Sway session + browser and the OS-level dependencies that the kiosk agent expects.
 
+For `novakiosk-os`, the Atomic privilege prerequisites used during onboarding are baked into the image.
+That means the generic onboarding permission-install step can be skipped on this image.
+
 ## What’s included
 
 - Sway session with auto-login via `greetd` (starts Sway as the `kiosk` user)
@@ -20,6 +23,10 @@ this image provides the Sway session + browser and the OS-level dependencies tha
 - `openssh-server` + `openssl` for direct SSH access and key management
 - Build tooling used by kiosk-agent dependencies (e.g. `gcc-c++`/`make`/`python3` for `node-pty`, used for
   novakiosk's built-in web terminal) + `libatomic` for some Node.js runtimes
+- A root-owned Atomic update helper at `/usr/libexec/novakiosk-system-update`
+- A matching system unit at `/usr/lib/systemd/system/novakiosk-system-update@.service`
+- A polkit rule allowing the `kiosk` user/group to reboot, power off, and start
+  `novakiosk-system-update@rpm-ostree.service`
 
 ## Firefox policies & extensions (Flatpak)
 
@@ -101,11 +108,14 @@ Note: After the first installation, you will be prompted to enroll the secure bo
 
 Enter the password `universalblue` when prompted to enroll the key.
 
-### Passwords / sudo / SSH
+### Passwords / polkit / SSH
 
 This image auto-logs into the `kiosk` account locally. The `kiosk` user is created at boot (via `systemd-sysusers`) and is intended to be a dedicated kiosk/service user, not your day-to-day admin account.
 
 Important:
 - Create a **separate admin user** during installation and use **that** user for SSH and administrative tasks. Do **not** name your admin user `kiosk`.
 - The `kiosk` user’s password is **locked** by default (no password login). This is intentional and helps avoid interactive logins as `kiosk`.
-- In this setup, `kiosk` has elevated privileges, but is expected to rely only on *explicitly allowed* passwordless sudo rules (for example, `systemctl reboot` / `poweroff`). Because `kiosk` can’t authenticate with a password, any `sudo` command that requires authentication (for example `sudo -i`) will fail; only `NOPASSWD:` (or other non-password) rules will work.
+- `kiosk` is **not** a general-purpose sudo user. On this image, the kiosk privilege model is polkit-based:
+  - `systemctl reboot`
+  - `systemctl poweroff`
+  - `systemctl start --wait novakiosk-system-update@rpm-ostree.service`

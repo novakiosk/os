@@ -1,0 +1,29 @@
+#!/usr/bin/bash
+set -euo pipefail
+
+backend="${1:-}"
+
+case "${backend}" in
+  rpm-ostree)
+    ;;
+  "")
+    echo "usage: novakiosk-system-update rpm-ostree" >&2
+    exit 64
+    ;;
+  *)
+    echo "unsupported update backend: ${backend}" >&2
+    exit 64
+    ;;
+esac
+
+if [[ ! -f /run/ostree-booted ]]; then
+  echo "rpm-ostree updates are only supported on Atomic/ostree systems" >&2
+  exit 69
+fi
+
+if [[ ! -x /usr/bin/rpm-ostree ]]; then
+  echo "rpm-ostree is not installed" >&2
+  exit 69
+fi
+
+exec /usr/bin/rpm-ostree upgrade

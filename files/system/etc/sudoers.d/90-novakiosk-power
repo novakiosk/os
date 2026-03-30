@@ -1,3 +1,0 @@
-# Allow the kiosk user to reboot/power off the machine without a password.
-# This is used by the kiosk agent when an admin triggers reboot/shutdown via novakiosk.
-kiosk ALL=(root) NOPASSWD: /usr/bin/systemctl reboot, /usr/bin/systemctl poweroff
