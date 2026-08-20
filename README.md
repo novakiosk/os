@@ -15,7 +15,8 @@ That means the generic onboarding permission-install step can be skipped on this
 
 ## What’s included
 
-- Sway session with auto-login via `greetd` (starts Sway as the `kiosk` user)
+- Sway session with auto-login via `greetd` (starts Sway as the `kiosk` user), including a
+  VNC-accessible headless output with USB HID keyboard/scanner input when no monitor is connected
 - Firefox as a system Flatpak (`org.mozilla.firefox`) for kiosk display
 - Firefox enterprise policies for kiosk defaults (including auto-installing selected extensions)
 - `ydotool` for kiosk agent automation (e.g. forcing refresh / sending input)
