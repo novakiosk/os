@@ -1,0 +1,15 @@
+{
+  "AutofillAddressEnabled": false,
+  "AutofillCreditCardEnabled": false,
+  "BrowserSignin": 0,
+  "DefaultBrowserSettingEnabled": false,
+  "DeveloperToolsAvailability": 2,
+  "ExtensionInstallForcelist": [
+    "edibdbjcniadpccecjdfdjjppcpchdlm;https://clients2.google.com/service/update2/crx"
+  ],
+  "MetricsReportingEnabled": false,
+  "PasswordManagerEnabled": false,
+  "PrintingEnabled": true,
+  "SyncDisabled": true,
+  "UserFeedbackAllowed": false
+}

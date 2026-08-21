@@ -56,6 +56,7 @@ modules:
         scope: system
         install:
           - org.mozilla.firefox
+          - org.chromium.Chromium
       - scope: user
 
   - type: signing

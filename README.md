@@ -18,7 +18,9 @@ That means the generic onboarding permission-install step can be skipped on this
 - Sway session with auto-login via `greetd` (starts Sway as the `kiosk` user), including a
   VNC-accessible headless output with USB HID keyboard/scanner input when no monitor is connected
 - Firefox as a system Flatpak (`org.mozilla.firefox`) for kiosk display
-- Firefox enterprise policies for kiosk defaults (including auto-installing selected extensions)
+- Chromium as a system Flatpak (`org.chromium.Chromium`) for kiosks that need its more reliable
+  custom/borderless CUPS media handling
+- Firefox and Chromium enterprise policies for kiosk defaults (including auto-installing selected extensions)
 - `ydotool` for kiosk agent automation (e.g. forcing refresh / sending input)
 - `wayvnc` for remote view/control (used by novakiosk’s VNC feature)
 - `openssh-server` + `openssl` for direct SSH access and key management
@@ -56,6 +58,30 @@ Other kiosk defaults applied via policy:
 - Disable Developer Tools and block `about:config`
 - Force links opened by sites to reuse the same tab (best-effort; depends on site behavior)
 - Work around a Firefox Wayland `-kiosk` black-screen issue by setting `widget.wayland.vsync.enabled=false`
+
+## Chromium printing fallback (Flatpak)
+
+Firefox remains the default browser, and Chromium is installed alongside it. This is useful for label and 
+receipt printers whose CUPS queue uses custom or borderless media. A variable-size PPD can store a custom 
+default such as `Custom.90x70mm` without advertising it as a named paper-size choice, so Firefox may not show
+that default in its print dialog. Separately, Firefox has a
+[known Linux/GTK printing bug](https://bugzilla.mozilla.org/show_bug.cgi?id=1914238) that can render custom
+borderless output using A4 geometry. Chromium uses a different printing path and is therefore the recommended
+browser for kiosks affected by these issues.
+
+Chromium's kiosk policies are delivered through its Flatpak `org.chromium.Chromium.Extension` extension point.
+
+Policy source (in the image):
+
+- `/usr/share/novakiosk/chromium/policies/managed/policies.json`
+
+Policy location (generated on boot; treated as image-managed and refreshed on every boot):
+
+- `/var/lib/flatpak/extension/org.chromium.Chromium.Extension.novakiosk/<arch>/1/policies/managed/policies.json`
+
+The policies disable password saving, autofill, browser sign-in/sync, telemetry, feedback, and Developer Tools;
+keep printing enabled; suppress default-browser prompts; and force-install “I still don’t care about cookies” from
+the Chrome Web Store.
 
 ## Intended use
 
