@@ -127,9 +127,9 @@ To rebase an existing Fedora Atomic system to the latest build:
 
 ## ISO
 
-Prebuilt ISO snapshot: [novakiosk-os-20260210.iso](http://static.nova.onl/novakiosk-os-20260211.iso)
+Prebuilt ISO snapshot: [novakiosk-os-20260824.iso](http://static.nova.onl/novakiosk-os-20260824.iso)
 
-Checksum (SHA256): ee6fe1897bdf43e60153b8ba45683f7424fece101eea5d3e36e6735dddc2c85a
+Checksum (SHA256): 1a9daac69fcb81262a84ee52c556335f8a949d686f81c2e4a38bc31cdf57485a
 
 Note: After the first installation, you will be prompted to enroll the secure boot key in the BIOS.
 
