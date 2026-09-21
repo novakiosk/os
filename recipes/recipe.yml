@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=https://schema.blue-build.org/recipe-v1.json
 
 name: os
-description: Basic Fedora Sway installation with required packages for supporting novakiosk and novakeys.
+description: Basic Fedora Sway installation with required packages for supporting NOVA Kiosk and NOVA Keys.
 
 base-image: ghcr.io/ublue-os/base-main
 image-version: latest
@@ -18,19 +18,22 @@ modules:
     install:
       packages:
         - sway
-        - xorg-x11-server-Xwayland
-        - gcc-c++
-        - make
-        - python3
-        - libatomic
+        - swayidle
+        - chromium
+        - gtk4
         - gtk4-layer-shell
+        - anthy-unicode
+        - libhangul
+        - librime
+        - brise
+        - google-noto-sans-cjk-fonts
+        - cups
+        - cups-client
+        - cups-filters
         - NetworkManager-tui
         - ethtool
-        - openssl
-        - openssl-devel
         - sudo
         - wayvnc
-        - ydotool
         - openssh-server
         - greetd
     remove:
@@ -38,25 +41,24 @@ modules:
         - firefox
         - firefox-langpacks
 
+  - type: script
+    scripts:
+      - install-agent.sh
+      - install-novakeys.sh
+
   - type: systemd
     system:
       enabled:
         - NetworkManager.service
         - sshd.service
-        - ydotool.service
         - greetd.service
         - cups.service
+        - novakiosk-kiosk-lp-membership.service
         - novakiosk-enable-linger.service
-        - novakiosk-wayvnc-firewall.service
         - novakiosk-wol.service
 
-  - type: default-flatpaks
-    configurations:
-      - notify: true
-        scope: system
-        install:
-          - org.mozilla.firefox
-          - org.chromium.Chromium
-      - scope: user
+    user:
+      enabled:
+        - novakiosk-agent.service
 
   - type: signing

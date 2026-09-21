@@ -1,0 +1,11 @@
+[Unit]
+Description=Ensure kiosk printer group membership
+After=systemd-sysusers.service
+Before=greetd.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/novakiosk/ensure-kiosk-lp-membership.sh
+
+[Install]
+WantedBy=multi-user.target

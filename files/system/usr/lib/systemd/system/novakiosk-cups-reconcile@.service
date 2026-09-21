@@ -1,0 +1,20 @@
+[Unit]
+Description=NOVA Kiosk bounded CUPS reconciliation (%i)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/novakiosk-agent cups-helper --profile %i
+UMask=0077
+NoNewPrivileges=false
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=-/var/lib/novakiosk-agent -/var/lib/novakiosk-print-bridge /var/lib/novakiosk-cups-helper
+StateDirectory=novakiosk-cups-helper
+StateDirectoryMode=0700

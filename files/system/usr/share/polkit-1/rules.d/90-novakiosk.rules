@@ -17,6 +17,12 @@ polkit.addRule(function(action, subject) {
     if (verb === "start" && unit === "novakiosk-system-update@rpm-ostree.service") {
       return polkit.Result.YES;
     }
+    if (verb === "start" && unit === "novakiosk-cups-reconcile@kiosk.service") {
+      return polkit.Result.YES;
+    }
+    if (verb === "start" && unit === "novakiosk-cups-job@kiosk.service") {
+      return polkit.Result.YES;
+    }
   }
 
   return polkit.Result.NOT_HANDLED;

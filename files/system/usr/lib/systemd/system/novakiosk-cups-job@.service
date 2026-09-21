@@ -1,0 +1,26 @@
+[Unit]
+Description=NOVA Kiosk fixed CUPS job and queue control (%i)
+After=cups.service
+ConditionPathIsDirectory=/var/lib/novakiosk-cups-helper
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/novakiosk-agent cups-job-helper --profile %i
+UMask=0077
+NoNewPrivileges=false
+PrivateTmp=true
+PrivateDevices=false
+ProtectHome=true
+ProtectSystem=strict
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictSUIDSGID=true
+ReadWritePaths=-/var/lib/novakiosk-agent -/var/lib/novakiosk-print-bridge -/var/lib/novakiosk-cups-helper
+StateDirectory=novakiosk-cups-helper
+StateDirectoryMode=0700
+TimeoutStartSec=35s

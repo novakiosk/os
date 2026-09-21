@@ -1,0 +1,14 @@
+NOVA Kiosk OS
+Copyright 2026 Marius Ose Wagner
+
+The original code and configuration in this repository are licensed under
+Apache License, Version 2.0. See LICENSE.
+
+This project is based on the Apache-2.0-licensed BlueBuild template:
+https://github.com/blue-build/template
+
+Bundled applications and other OS components retain their own licenses.
+NOVA Kiosk Agent and NOVA Keys are MIT-licensed. Their license texts and
+bundled dependency notices are installed in the OS image under:
+  /usr/share/licenses/novakiosk-agent/
+  /usr/share/licenses/novakeys/

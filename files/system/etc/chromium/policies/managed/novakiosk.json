@@ -3,13 +3,15 @@
   "AutofillCreditCardEnabled": false,
   "BrowserSignin": 0,
   "DefaultBrowserSettingEnabled": false,
-  "DeveloperToolsAvailability": 2,
-  "ExtensionInstallForcelist": [
-    "edibdbjcniadpccecjdfdjjppcpchdlm;https://clients2.google.com/service/update2/crx"
-  ],
+  "DeveloperToolsAvailability": 0,
   "MetricsReportingEnabled": false,
   "PasswordManagerEnabled": false,
   "PrintingEnabled": true,
   "SyncDisabled": true,
-  "UserFeedbackAllowed": false
+  "UserFeedbackAllowed": false,
+  "RemoteDebuggingAllowed": true,
+  "PrintPreviewUseSystemDefaultPrinter": true,
+  "PrinterTypeDenyList": [
+    "pdf"
+  ]
 }
