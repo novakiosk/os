@@ -37,6 +37,13 @@ tar -xOzf "$archive" "$name/bin/novakiosk-agent" > novakiosk-agent
 test -s novakiosk-agent
 chmod 0755 novakiosk-agent
 [[ $(./novakiosk-agent version) == "novakiosk-agent $version" ]] || { echo 'Agent payload version mismatch' >&2; exit 1; }
+capabilities=$(./novakiosk-agent capabilities 2>/dev/null)
+for required in device-authority-v1 fleet-update-v1; do
+    [[ " $capabilities " =~ (^|[[:space:]])$required($|[[:space:]]) ]] || {
+        echo "Downloaded Agent lacks required $required capability; publish a compatible Agent first" >&2
+        exit 1
+    }
+done
 
 # Keep the application's license and all bundled dependency notices together.
 mkdir license-files

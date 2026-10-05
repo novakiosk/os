@@ -1,0 +1,33 @@
+[Unit]
+Description=NOVA Kiosk device authority
+After=systemd-sysusers.service systemd-tmpfiles-setup.service novakiosk-kiosk-lp-membership.service network.target
+Wants=novakiosk-kiosk-lp-membership.service
+
+[Service]
+Type=simple
+User=novakiosk-agent
+Group=novakiosk-ipc
+ExecStart=/usr/bin/novakiosk-agent agentd
+Restart=on-failure
+RestartPreventExitStatus=78
+RestartSec=5s
+UMask=0077
+StateDirectory=novakiosk-agentd
+StateDirectoryMode=0700
+RuntimeDirectory=novakiosk-agentd
+RuntimeDirectoryMode=0750
+NoNewPrivileges=true
+CapabilityBoundingSet=
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/var/lib/novakiosk-agentd-helpers
+
+[Install]
+WantedBy=multi-user.target

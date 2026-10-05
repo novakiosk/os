@@ -10,15 +10,32 @@ view/control through the Agent's outbound connection.
 
 ## Install and enroll
 
-Generate an installer from the published image with the
-[BlueBuild CLI](https://blue-build.org/how-to/generate-iso/):
+For occasional initial-install media, use the custom
+[NOVA BlueBuild CLI](https://github.com/novakiosk/bluebuild-cli) with Rust,
+Docker (or Podman) installed. Build the CLI and its pinned companion
+installer from the same reviewed fork checkout:
 
 ```sh
-sudo bluebuild generate-iso --iso-name novakiosk-os.iso image ghcr.io/novakiosk/os:latest
+# Run from the bluebuild-cli checkout.
+cargo build --release
+sudo docker build -t localhost/bluebuild-installer:display-name-v1.4.0 \
+  -f installer/Containerfile installer
+sudo ./target/release/bluebuild generate-iso \
+  --run-driver docker \
+  --interactive-setup --display-name novakiosk-os \
+  --iso-name novakiosk-os-YYYYMMDD.iso \
+  --output-dir /path/to/installer-output \
+  image ghcr.io/novakiosk/os:latest
 ```
 
+`--display-name` changes only the displayed installer name.
+`--interactive-setup` restores network configuration (including static addresses
+without DHCP) and user creation in both the classic installer and WebUI. Add
+`--web-ui` to select WebUI.
+
 Write the ISO to a USB drive and boot it. During installation, create a separate
-administrator account; do not name it `kiosk`. The image provides the `kiosk`
+user account and select the installer's administrator option to grant sudo access.
+Do not name it `kiosk`. The image provides the `kiosk`
 account, starts its graphical session automatically, and keeps its password locked.
 Use the administrator account for SSH and maintenance; `sudo nmtui` configures
 networking if needed.
@@ -26,9 +43,9 @@ networking if needed.
 Create an enrollment code in your NOVA Kiosk instance, then run:
 
 ```sh
-sudo -u kiosk /usr/bin/novakiosk-agent smoke \
+sudo -u novakiosk-agent /usr/bin/novakiosk-agent smoke \
   --instance https://kiosk.example.com \
-  --state-dir /var/lib/novakiosk-agent
+  --state-dir /var/lib/novakiosk-agentd
 ```
 
 Enter the code when prompted and approve the machine in the admin UI. The Agent
@@ -40,8 +57,8 @@ Additional printer drivers may need to be added to the image recipe.
 To check enrollment and view Agent logs:
 
 ```sh
-sudo -u kiosk novakiosk-agent status --state-dir /var/lib/novakiosk-agent
-sudo journalctl _SYSTEMD_USER_UNIT=novakiosk-agent.service -f
+sudo -u novakiosk-agent novakiosk-agent status --state-dir /var/lib/novakiosk-agentd
+sudo journalctl -u novakiosk-agentd.service -f
 ```
 
 ## Updates
@@ -52,18 +69,6 @@ checks their `SHA256SUMS` and executable versions, and installs the binaries in
 under `/usr/share/licenses/novakiosk-agent/` or `/usr/share/licenses/novakeys/`.
 Services and configuration come from this repository.
 
-GitHub Actions builds daily at 06:00 UTC, on code changes, and on manual runs.
-A new application release is included in the next successful image build.
-Installed kiosks receive it by updating their OS image and rebooting:
-
-```sh
-sudo rpm-ostree upgrade
-sudo systemctl reboot
-```
-
-The admin UI's **Stage system update** action stages the same update; restart
-separately to activate it. `rpm-ostree status` shows deployed versions. To return
-to the previous OS deployment, run `sudo rpm-ostree rollback` and reboot.
 
 ## Customize and build
 
@@ -72,8 +77,6 @@ Edit [recipes/recipe.yml](recipes/recipe.yml) for packages and modules, and
 [local build guide](https://blue-build.org/how-to/local/) or use
 the included GitHub Actions workflow. Forks need their own
 [signing key and `SIGNING_SECRET`](https://blue-build.org/how-to/cosign/).
-Local builders must rebuild the installer layers to pick up newer application
-releases; a cached layer retains its previous downloads.
 
 ## Project
 

@@ -6,5 +6,7 @@ ConditionPathExists=/run/ostree-booted
 [Service]
 Type=oneshot
 ExecStart=/usr/libexec/novakiosk-system-update %I
-TimeoutStartSec=infinity
+TimeoutStartSec=30min
+TimeoutStopSec=30s
+KillMode=control-group
 

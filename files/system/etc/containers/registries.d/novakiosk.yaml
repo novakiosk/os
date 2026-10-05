@@ -1,0 +1,7 @@
+{
+  "docker": {
+    "ghcr.io/novakiosk/os": {
+      "use-sigstore-attachments": true
+    }
+  }
+}

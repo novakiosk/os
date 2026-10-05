@@ -51,3 +51,8 @@ install -Dm0755 novakeys /usr/bin/novakeys
 rm -rf /usr/share/licenses/novakeys
 install -d -m0755 /usr/share/licenses/novakeys
 cp -R license-files/. /usr/share/licenses/novakeys/
+
+# Display metadata only; image identity and update trust use the signed digest.
+install -d -m0755 /usr/share/novakiosk
+printf '%s\n' "$version" > /usr/share/novakiosk/novakeys-version
+chmod 0644 /usr/share/novakiosk/novakeys-version

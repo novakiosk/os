@@ -5,6 +5,8 @@ description: Basic Fedora Sway installation with required packages for supportin
 
 base-image: ghcr.io/ublue-os/base-main
 image-version: latest
+blue-build-tag: none
+cosign-version: none
 
 modules:
   - type: files
@@ -17,6 +19,7 @@ modules:
   - type: dnf
     install:
       packages:
+        - python3
         - sway
         - swayidle
         - chromium
@@ -53,6 +56,7 @@ modules:
         - sshd.service
         - greetd.service
         - cups.service
+        - novakiosk-agentd.service
         - novakiosk-kiosk-lp-membership.service
         - novakiosk-enable-linger.service
         - novakiosk-wol.service
@@ -61,4 +65,10 @@ modules:
       enabled:
         - novakiosk-agent.service
 
-  - type: signing
+  - type: script
+    scripts:
+      - validate-update-policy.sh
+
+  - type: containerfile
+    snippets:
+      - LABEL io.novakiosk.fleet-update="fleet-update-v1"

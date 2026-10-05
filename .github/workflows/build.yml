@@ -1,42 +1,36 @@
 name: bluebuild
 on:
   schedule:
-    - cron:
-        "00 06 * * *" # build at 06:00 UTC every day
-        # (20 minutes after last ublue images start building)
+    - cron: "00 06 * * *"
   push:
-    paths-ignore: # don't rebuild if only documentation has changed
-      - "**.md"
-
+    branches: [main]
+    paths-ignore: ["**.md"]
   pull_request:
-  workflow_dispatch: # allow manually triggering builds
+  workflow_dispatch:
 concurrency:
-  # only run one build at a time
   group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
   bluebuild:
-    name: Build Custom Image
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       packages: write
       id-token: write
-    strategy:
-      fail-fast: false # stop GH from cancelling all matrix builds if one fails
-      matrix:
-        recipe:
-          # !! Add your recipes here
-          - recipe.yml
     steps:
-      # the build is fully handled by the reusable github action
-      - name: Build Custom Image
-        uses: blue-build/github-action@v1.13
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          recipe: ${{ matrix.recipe }}
+          persist-credentials: false
+      - name: Validate update helper
+        run: python3 -m unittest discover -s tests -v
+      - name: Build and sign daily OS image
+        uses: blue-build/github-action@c295af864f2802fc6aea227507af43d35823db81 # v1.13
+        with:
+          recipe: recipe.yml
+          cli_version: v0.9.37
+          skip_checkout: true
           cosign_private_key: ${{ secrets.SIGNING_SECRET }}
           registry_token: ${{ github.token }}
           pr_event_number: ${{ github.event.number }}
-
-          # enabled by default, disable if your image is small and you want faster builds
+          push: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && github.repository == 'novakiosk/os' }}
           maximize_build_space: true

@@ -1,29 +1,243 @@
-#!/usr/bin/bash
-set -euo pipefail
+#!/usr/bin/python3 -I
+"""Fixed, privileged digest-only staging boundary. No reboot or caller paths."""
+import fcntl
+import hashlib
+import json
+import os
+import pwd
+import re
+import select
+import stat
+import subprocess
+import sys
+import time
+import uuid
 
-backend="${1:-}"
+REPOSITORY = "ghcr.io/novakiosk/os"
+KEY = "/etc/pki/containers/novakiosk.pub"
+KEY_SHA256 = "f63b091db4cdd9acb46e96e0e22d62350efe6c8d3c451f1738b56365bd677730"
+POLICY = {"default": [{"type": "reject"}], "transports": {"docker": {
+    REPOSITORY: [{"type": "sigstoreSigned", "keyPath": KEY,
+                  "signedIdentity": {"type": "matchRepository"}}]}}}
+REGISTRIES = {"docker": {REPOSITORY: {"use-sigstore-attachments": True}}}
+REQUEST = "/var/lib/novakiosk-agentd-helpers/kiosk/system-update.json"
 
-case "${backend}" in
-  rpm-ostree)
-    ;;
-  "")
-    echo "usage: novakiosk-system-update rpm-ostree" >&2
-    exit 64
-    ;;
-  *)
-    echo "unsupported update backend: ${backend}" >&2
-    exit 64
-    ;;
-esac
 
-if [[ ! -f /run/ostree-booted ]]; then
-  echo "rpm-ostree updates are only supported on Atomic/ostree systems" >&2
-  exit 69
-fi
+def unique_object(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate key")
+        result[key] = value
+    return result
 
-if [[ ! -x /usr/bin/rpm-ostree ]]; then
-  echo "rpm-ostree is not installed" >&2
-  exit 69
-fi
 
-exec /usr/bin/rpm-ostree upgrade
+def protected_read(path, owner, limit, private=False):
+    """Walk with held directory fds: never follow a renamed parent or symlink."""
+    parts = path.split("/")[1:]
+    fd = os.open("/", os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        for i, part in enumerate(parts):
+            flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
+            if i != len(parts) - 1:
+                flags |= os.O_DIRECTORY
+            child = os.open(part, flags, dir_fd=fd)
+            os.close(fd)
+            fd = child
+            info = os.fstat(fd)
+            is_dir = i != len(parts) - 1
+            allowed = (0, owner) if is_dir else (owner,)
+            if info.st_uid not in allowed or info.st_mode & 0o022:
+                raise ValueError("unsafe ownership")
+            if is_dir and info.st_uid == owner and owner != 0 and info.st_mode & 0o077:
+                raise ValueError("unsafe directory")
+            if not is_dir:
+                if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_size > limit:
+                    raise ValueError("unsafe file")
+                if private and info.st_mode & 0o077:
+                    raise ValueError("unsafe mode")
+        data = os.read(fd, limit + 1)
+        if len(data) > limit:
+            raise ValueError("oversized file")
+        return data
+    finally:
+        os.close(fd)
+
+
+def decode(data):
+    return json.loads(data.decode("utf-8"), object_pairs_hook=unique_object)
+
+
+def read_request(owner):
+    request = decode(protected_read(REQUEST, owner, 4096, private=True))
+    if not isinstance(request, dict) or set(request) != {"version", "commandId", "imageDigest", "action"}:
+        raise ValueError("invalid request")
+    if type(request["version"]) is not int or request["version"] != 1:
+        raise ValueError("invalid version")
+    command = request["commandId"]
+    if not isinstance(command, str) or str(uuid.UUID(command)) != command:
+        raise ValueError("invalid command")
+    digest = request["imageDigest"]
+    if not isinstance(digest, str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
+        raise ValueError("invalid digest")
+    if request["action"] not in ("update", "rollback", "resume"):
+        raise ValueError("invalid action")
+    return digest, request["action"]
+
+
+def verify_policy():
+    if hashlib.sha256(protected_read(KEY, 0, 2048)).hexdigest() != KEY_SHA256:
+        raise ValueError("untrusted key")
+    if decode(protected_read("/etc/containers/policy.json", 0, 16384)) != POLICY:
+        raise ValueError("untrusted policy")
+    if decode(protected_read("/etc/containers/registries.d/novakiosk.yaml", 0, 4096)) != REGISTRIES:
+        raise ValueError("untrusted registry policy")
+
+
+def status_bytes():
+    command = ["/usr/bin/rpm-ostree", "status", "--json"]
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                               env={"PATH": "/usr/bin:/usr/sbin", "LC_ALL": "C"})
+    deadline = time.monotonic() + 30
+    output = bytearray()
+    try:
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0 or not select.select([process.stdout], [], [], remaining)[0]:
+                raise subprocess.TimeoutExpired(command, 30)
+            chunk = os.read(process.stdout.fileno(), 65536)
+            if not chunk:
+                break
+            output.extend(chunk)
+            if len(output) > 1024 * 1024:
+                raise ValueError("oversized status")
+        code = process.wait(timeout=max(0.001, deadline - time.monotonic()))
+        if code:
+            raise subprocess.CalledProcessError(code, command)
+        return bytes(output)
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait()
+        process.stdout.close()
+
+
+class TransactionPending(ValueError):
+    pass
+
+
+def status():
+    value = decode(status_bytes())
+    deployments = value.get("deployments")
+    if not isinstance(deployments, list) or not deployments or len(deployments) > 20:
+        raise ValueError("invalid status")
+    if any(not isinstance(d, dict) for d in deployments):
+        raise ValueError("invalid status")
+    if value.get("transaction"):
+        raise TransactionPending("transaction pending")
+    return deployments
+
+
+def signed_reference(deployment):
+    reference = deployment.get("container-image-reference")
+    if not isinstance(reference, str):
+        return None
+    for transport in ("docker://", "registry:"):
+        prefix = "ostree-image-signed:" + transport + REPOSITORY
+        if reference == prefix + ":latest":
+            return ":latest"
+        suffix = reference.removeprefix(prefix)
+        if suffix != reference and re.fullmatch(r"@sha256:[0-9a-f]{64}", suffix):
+            return suffix
+    return None
+
+
+def matches(deployment, digest, action):
+    expected = "@" + digest if action == "rollback" else ":latest"
+    return (deployment.get("container-image-reference-digest") == digest and
+            signed_reference(deployment) == expected)
+
+
+def stage(digest, action):
+    deployments = status()
+    booted = [d for d in deployments if d.get("booted") is True]
+    if len(booted) != 1:
+        raise ValueError("invalid booted deployment")
+    # A non-booted deployment before booted is pending, including finalized ones.
+    pending = deployments[:deployments.index(booted[0])]
+    if pending:
+        if len(pending) == 1 and matches(pending[0], digest, action):
+            return
+        raise ValueError("pending conflict")
+    if matches(booted[0], digest, action):
+        return
+    reference = "ostree-image-signed:docker://" + REPOSITORY
+    # Native revision override verifies this digest while retaining the latest
+    # origin. rpm-ostree clears the override on the next ordinary upgrade.
+    if action != "rollback" and signed_reference(booted[0]) == ":latest":
+        # Rebase rejects an unchanged origin before applying the revision.
+        # Deploy applies the selected verified revision on the existing origin.
+        target = ["deploy", digest]
+    elif action == "rollback":
+        target = ["rebase", reference + "@" + digest]
+    else:
+        target = ["rebase", reference + ":latest", digest]
+    subprocess.run(["/usr/bin/rpm-ostree", *target],
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                   check=True, timeout=1740,
+                   env={"PATH": "/usr/bin:/usr/sbin", "LC_ALL": "C"})
+    deployments = status()
+    if not matches(deployments[0], digest, action):
+        raise ValueError("requested image not staged")
+
+
+def automatic():
+    try:
+        deployments = status()
+    except TransactionPending:
+        return
+    booted = [d for d in deployments if d.get("booted") is True]
+    if len(booted) != 1:
+        raise ValueError("invalid booted deployment")
+    # Never replace a selected pending image, even after OSTree finalization.
+    if deployments[0] != booted[0]:
+        return
+    # Digest origins intentionally hold rollback. Unknown origins fail closed.
+    if signed_reference(booted[0]) != ":latest":
+        return
+    subprocess.run(["/usr/bin/rpm-ostree", "upgrade", "--quiet",
+                    "--trigger-automatic-update-policy"],
+                   check=True, timeout=1740,
+                   env={"PATH": "/usr/bin:/usr/sbin", "LC_ALL": "C"})
+
+
+def main():
+    if len(sys.argv) != 2 or sys.argv[1] not in ("rpm-ostree", "automatic") or os.geteuid() != 0:
+        return 64
+    if not os.path.isfile("/run/ostree-booted"):
+        return 69
+    try:
+        fd = os.open("/run/novakiosk-system-update.lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+        with os.fdopen(fd, "w") as lock:
+            info = os.fstat(lock.fileno())
+            if info.st_uid != 0 or not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_mode & 0o077:
+                raise ValueError("unsafe lock")
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                if sys.argv[1] == "automatic":
+                    return 0
+                raise
+            verify_policy()
+            if sys.argv[1] == "automatic":
+                automatic()
+            else:
+                stage(*read_request(pwd.getpwnam("novakiosk-agent").pw_uid))
+        return 0
+    except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):
+        print("system update rejected or staging failed", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

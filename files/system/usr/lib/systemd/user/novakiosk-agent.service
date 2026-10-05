@@ -1,12 +1,12 @@
 [Unit]
-Description=NOVA Kiosk managed agent (kiosk user)
+Description=NOVA Kiosk graphical companion (kiosk user)
 ConditionUser=kiosk
 StartLimitIntervalSec=60s
 StartLimitBurst=5
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/novakiosk-agent run --state-dir /var/lib/novakiosk-agent --runtime-mode sway
+ExecStart=/usr/bin/novakiosk-agent runtime --state-dir /var/lib/novakiosk-runtime
 Restart=on-failure
 RestartSec=5s
 UMask=0077

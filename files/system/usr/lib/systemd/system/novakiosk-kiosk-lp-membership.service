@@ -1,7 +1,7 @@
 [Unit]
-Description=Ensure kiosk printer group membership
+Description=Ensure kiosk and authority device group memberships
 After=systemd-sysusers.service
-Before=greetd.service
+Before=greetd.service novakiosk-agentd.service
 
 [Service]
 Type=oneshot

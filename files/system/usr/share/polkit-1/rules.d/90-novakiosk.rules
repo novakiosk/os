@@ -1,5 +1,5 @@
 polkit.addRule(function(action, subject) {
-  if (subject.user !== "kiosk") {
+  if (subject.user !== "novakiosk-agent") {
     return polkit.Result.NOT_HANDLED;
   }
 
@@ -17,10 +17,10 @@ polkit.addRule(function(action, subject) {
     if (verb === "start" && unit === "novakiosk-system-update@rpm-ostree.service") {
       return polkit.Result.YES;
     }
-    if (verb === "start" && unit === "novakiosk-cups-reconcile@kiosk.service") {
+    if (verb === "start" && (unit === "novakiosk-cups-reconcile@kiosk.service" || unit === "novakiosk-cups-reconcile@print-bridge.service")) {
       return polkit.Result.YES;
     }
-    if (verb === "start" && unit === "novakiosk-cups-job@kiosk.service") {
+    if (verb === "start" && (unit === "novakiosk-cups-job@kiosk.service" || unit === "novakiosk-cups-job@print-bridge.service")) {
       return polkit.Result.YES;
     }
   }
