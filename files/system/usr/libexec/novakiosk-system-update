@@ -190,7 +190,7 @@ def stage(digest, action, repository=REPOSITORY):
     else:
         target = ["rebase", reference + ":latest", digest]
     subprocess.run(["/usr/bin/rpm-ostree", *target],
-                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                   stdout=subprocess.DEVNULL,
                    check=True, timeout=1740,
                    env={"PATH": "/usr/bin:/usr/sbin", "LC_ALL": "C"})
     deployments = status()

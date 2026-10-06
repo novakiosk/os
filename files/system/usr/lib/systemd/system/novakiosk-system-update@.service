@@ -1,12 +1,11 @@
 [Unit]
-Description=Run NOVA Kiosk OS update helper for %I
+Description=Run NOVA Kiosk OS update helper for %i
 Documentation=https://github.com/novakiosk/os
 ConditionPathExists=/run/ostree-booted
 
 [Service]
 Type=oneshot
-ExecStart=/usr/libexec/novakiosk-system-update %I
+ExecStart=/usr/libexec/novakiosk-system-update %i
 TimeoutStartSec=30min
 TimeoutStopSec=30s
 KillMode=control-group
-

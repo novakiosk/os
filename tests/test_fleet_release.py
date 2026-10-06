@@ -23,6 +23,18 @@ def deployment(digest=DIGEST,booted=False):
 
 
 class RequestTests(unittest.TestCase):
+    def test_unit_preserves_backend_instance(self):
+        unit=(ROOT/'files/system/usr/lib/systemd/system/novakiosk-system-update@.service').read_text()
+        command=next(line.removeprefix('ExecStart=') for line in unit.splitlines() if line.startswith('ExecStart='))
+        instance='rpm-ostree'
+        unescaped=subprocess.check_output(['systemd-escape','--unescape',instance],text=True).strip()
+        self.assertEqual(unescaped,'rpm/ostree')
+        argv=command.replace('%i',instance).replace('%I',unescaped).split()
+        self.assertEqual(argv,['/usr/libexec/novakiosk-system-update','rpm-ostree'])
+        # Stop at the non-OSTree guard: the real parser must accept the unit's argument.
+        with patch.object(helper.sys,'argv',argv),patch.object(helper.os,'geteuid',return_value=0),patch.object(helper.os.path,'isfile',return_value=False):
+            self.assertEqual(helper.main(),69)
+
     def request(self, value):
         with patch.object(helper,'protected_read',return_value=json.dumps(value).encode()):
             return helper.read_request(123)
@@ -90,6 +102,7 @@ class StageTests(unittest.TestCase):
             helper.stage(DIGEST,"rollback")
             self.assertEqual(run.call_args.args[0],['/usr/bin/rpm-ostree','rebase','ostree-image-signed:docker://ghcr.io/novakiosk/os@'+DIGEST])
             self.assertEqual(run.call_args.kwargs['timeout'],1740)
+            self.assertNotIn('stderr',run.call_args.kwargs)
 
     def test_pending_conflicts_and_insecure_reference(self):
         boot=deployment('sha256:'+'b'*64,True)
