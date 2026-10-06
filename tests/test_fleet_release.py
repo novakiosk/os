@@ -109,8 +109,8 @@ class StageTests(unittest.TestCase):
             helper.stage(DIGEST,"rollback")
 
     def test_trust_policy_cannot_be_relaxed(self):
-        files={helper.KEY:(ROOT/'cosign.pub').read_bytes(),'/etc/containers/policy.json':json.dumps(helper.POLICY).encode(),
-               '/etc/containers/registries.d/novakiosk.yaml':json.dumps(helper.REGISTRIES).encode()}
+        files={helper.KEY:(ROOT/'cosign.pub').read_bytes(),'/etc/containers/policy.json':(ROOT/'files/system/etc/containers/policy.json').read_bytes(),
+               '/etc/containers/registries.d/novakiosk.yaml':(ROOT/'files/system/etc/containers/registries.d/novakiosk.yaml').read_bytes()}
         with patch.object(helper,'protected_read',side_effect=lambda path,*args:files[path]):
             helper.verify_policy()
             files['/etc/containers/policy.json']=b'{"default":[{"type":"insecureAcceptAnything"}]}'
@@ -182,7 +182,7 @@ class AutomaticTests(unittest.TestCase):
             def owned(fd):
                 values=list(real_stat(fd));values[4]=0
                 return os.stat_result(values)
-            def backend(*args):
+            def backend(*args, **kwargs):
                 fd=real_open(lockpath,os.O_RDWR)
                 try:
                     with self.assertRaises(BlockingIOError):helper.fcntl.flock(fd,helper.fcntl.LOCK_EX|helper.fcntl.LOCK_NB)
@@ -194,5 +194,24 @@ class AutomaticTests(unittest.TestCase):
                     helper.fcntl.flock(fd,helper.fcntl.LOCK_EX|helper.fcntl.LOCK_NB)
                     try:self.assertEqual(helper.main(),0 if mode=='automatic' else 1)
                     finally:os.close(fd)
+
+
+class CustomPolicyTests(unittest.TestCase):
+    def test_custom_repository_stages_only_under_installed_policy(self):
+        repository='ghcr.io/example/custom-os'
+        files={helper.KEY:(ROOT/'cosign.pub').read_bytes(),
+               '/etc/containers/policy.json':(ROOT/'files/system/etc/containers/policy.json').read_bytes().replace(b'ghcr.io/novakiosk/os',repository.encode()),
+               '/etc/containers/registries.d/novakiosk.yaml':(ROOT/'files/system/etc/containers/registries.d/novakiosk.yaml').read_bytes().replace(b'ghcr.io/novakiosk/os',repository.encode())}
+        with patch.object(helper,'protected_read',side_effect=lambda path,*args:files[path]):
+            self.assertEqual(helper.verify_policy(),repository)
+            files['/etc/containers/registries.d/novakiosk.yaml']=(ROOT/'files/system/etc/containers/registries.d/novakiosk.yaml').read_bytes()
+            with self.assertRaises(ValueError):helper.verify_policy()
+        boot=deployment('sha256:'+'b'*64,True)
+        boot['container-image-reference']='ostree-image-signed:docker://'+repository+':latest'
+        pending=deployment();pending['container-image-reference']='ostree-image-signed:docker://'+repository+'@'+DIGEST
+        with patch.object(helper,'status',side_effect=[[boot],[pending,boot]]),patch.object(helper.subprocess,'run') as run:
+            helper.stage(DIGEST,'rollback',repository)
+            self.assertEqual(run.call_args.args[0],['/usr/bin/rpm-ostree','rebase','ostree-image-signed:docker://'+repository+'@'+DIGEST])
+        self.assertIsNone(helper.signed_reference(pending))
 
 if __name__=='__main__':unittest.main()

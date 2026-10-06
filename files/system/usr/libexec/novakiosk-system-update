@@ -1,7 +1,6 @@
 #!/usr/bin/python3 -I
 """Fixed, privileged digest-only staging boundary. No reboot or caller paths."""
 import fcntl
-import hashlib
 import json
 import os
 import pwd
@@ -15,11 +14,6 @@ import uuid
 
 REPOSITORY = "ghcr.io/novakiosk/os"
 KEY = "/etc/pki/containers/novakiosk.pub"
-KEY_SHA256 = "f63b091db4cdd9acb46e96e0e22d62350efe6c8d3c451f1738b56365bd677730"
-POLICY = {"default": [{"type": "reject"}], "transports": {"docker": {
-    REPOSITORY: [{"type": "sigstoreSigned", "keyPath": KEY,
-                  "signedIdentity": {"type": "matchRepository"}}]}}}
-REGISTRIES = {"docker": {REPOSITORY: {"use-sigstore-attachments": True}}}
 REQUEST = "/var/lib/novakiosk-agentd-helpers/kiosk/system-update.json"
 
 
@@ -86,12 +80,25 @@ def read_request(owner):
 
 
 def verify_policy():
-    if hashlib.sha256(protected_read(KEY, 0, 2048)).hexdigest() != KEY_SHA256:
-        raise ValueError("untrusted key")
-    if decode(protected_read("/etc/containers/policy.json", 0, 16384)) != POLICY:
+    policy = decode(protected_read("/etc/containers/policy.json", 0, 16384))
+    transports = policy.get("transports") if isinstance(policy, dict) else None
+    docker = transports.get("docker") if isinstance(transports, dict) else None
+    if not isinstance(docker, dict) or len(docker) != 1:
+        raise ValueError("ambiguous image policy")
+    repository = next(iter(docker))
+    if len(repository) > 255 or not re.fullmatch(r"ghcr\.io/[a-z0-9]+(?:[._-][a-z0-9]+)*(?:/[a-z0-9]+(?:[._-][a-z0-9]+)*)+", repository):
+        raise ValueError("invalid policy repository")
+    expected = {"default": [{"type": "reject"}], "transports": {"docker": {
+        repository: [{"type": "sigstoreSigned", "keyPath": KEY,
+                      "signedIdentity": {"type": "matchRepository"}}]}}}
+    if policy != expected:
         raise ValueError("untrusted policy")
-    if decode(protected_read("/etc/containers/registries.d/novakiosk.yaml", 0, 4096)) != REGISTRIES:
+    if decode(protected_read("/etc/containers/registries.d/novakiosk.yaml", 0, 4096)) != {"docker": {repository: {"use-sigstore-attachments": True}}}:
         raise ValueError("untrusted registry policy")
+    key = protected_read(KEY, 0, 2048)
+    if not re.fullmatch(rb"-----BEGIN PUBLIC KEY-----\r?\n[A-Za-z0-9+/=\r\n]+-----END PUBLIC KEY-----\s*", key):
+        raise ValueError("invalid signing public key")
+    return repository
 
 
 def status_bytes():
@@ -138,12 +145,12 @@ def status():
     return deployments
 
 
-def signed_reference(deployment):
+def signed_reference(deployment, repository=REPOSITORY):
     reference = deployment.get("container-image-reference")
     if not isinstance(reference, str):
         return None
     for transport in ("docker://", "registry:"):
-        prefix = "ostree-image-signed:" + transport + REPOSITORY
+        prefix = "ostree-image-signed:" + transport + repository
         if reference == prefix + ":latest":
             return ":latest"
         suffix = reference.removeprefix(prefix)
@@ -152,13 +159,13 @@ def signed_reference(deployment):
     return None
 
 
-def matches(deployment, digest, action):
+def matches(deployment, digest, action, repository=REPOSITORY):
     expected = "@" + digest if action == "rollback" else ":latest"
     return (deployment.get("container-image-reference-digest") == digest and
-            signed_reference(deployment) == expected)
+            signed_reference(deployment, repository) == expected)
 
 
-def stage(digest, action):
+def stage(digest, action, repository=REPOSITORY):
     deployments = status()
     booted = [d for d in deployments if d.get("booted") is True]
     if len(booted) != 1:
@@ -166,15 +173,15 @@ def stage(digest, action):
     # A non-booted deployment before booted is pending, including finalized ones.
     pending = deployments[:deployments.index(booted[0])]
     if pending:
-        if len(pending) == 1 and matches(pending[0], digest, action):
+        if len(pending) == 1 and matches(pending[0], digest, action, repository):
             return
         raise ValueError("pending conflict")
-    if matches(booted[0], digest, action):
+    if matches(booted[0], digest, action, repository):
         return
-    reference = "ostree-image-signed:docker://" + REPOSITORY
+    reference = "ostree-image-signed:docker://" + repository
     # Native revision override verifies this digest while retaining the latest
     # origin. rpm-ostree clears the override on the next ordinary upgrade.
-    if action != "rollback" and signed_reference(booted[0]) == ":latest":
+    if action != "rollback" and signed_reference(booted[0], repository) == ":latest":
         # Rebase rejects an unchanged origin before applying the revision.
         # Deploy applies the selected verified revision on the existing origin.
         target = ["deploy", digest]
@@ -187,11 +194,11 @@ def stage(digest, action):
                    check=True, timeout=1740,
                    env={"PATH": "/usr/bin:/usr/sbin", "LC_ALL": "C"})
     deployments = status()
-    if not matches(deployments[0], digest, action):
+    if not matches(deployments[0], digest, action, repository):
         raise ValueError("requested image not staged")
 
 
-def automatic():
+def automatic(repository=REPOSITORY):
     try:
         deployments = status()
     except TransactionPending:
@@ -203,7 +210,7 @@ def automatic():
     if deployments[0] != booted[0]:
         return
     # Digest origins intentionally hold rollback. Unknown origins fail closed.
-    if signed_reference(booted[0]) != ":latest":
+    if signed_reference(booted[0], repository) != ":latest":
         return
     subprocess.run(["/usr/bin/rpm-ostree", "upgrade", "--quiet",
                     "--trigger-automatic-update-policy"],
@@ -228,11 +235,11 @@ def main():
                 if sys.argv[1] == "automatic":
                     return 0
                 raise
-            verify_policy()
+            repository = verify_policy()
             if sys.argv[1] == "automatic":
-                automatic()
+                automatic(repository)
             else:
-                stage(*read_request(pwd.getpwnam("novakiosk-agent").pw_uid))
+                stage(*read_request(pwd.getpwnam("novakiosk-agent").pw_uid), repository=repository)
         return 0
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):
         print("system update rejected or staging failed", file=sys.stderr)
