@@ -96,6 +96,34 @@ class RequestTests(unittest.TestCase):
 
 
 class StageTests(unittest.TestCase):
+    def test_explicit_update_replaces_automatic_pending(self):
+        reference = 'ostree-image-signed:docker://ghcr.io/novakiosk/os:latest'
+        boot = dict(deployment('sha256:'+'b'*64, True), **{'container-image-reference': reference})
+        old = dict(deployment('sha256:'+'c'*64), **{'container-image-reference': reference})
+        target = dict(deployment(), **{'container-image-reference': reference})
+        with patch.object(helper,'status',side_effect=[[old,boot],[target,boot]]),patch.object(helper.subprocess,'run') as run:
+            helper.stage(DIGEST,'update')
+            self.assertEqual(run.call_args.args[0],['/usr/bin/rpm-ostree','deploy',DIGEST])
+        # Failure never clears the older pending deployment first.
+        with patch.object(helper,'status',return_value=[old,boot]),patch.object(helper.subprocess,'run',side_effect=subprocess.CalledProcessError(1,'rpm-ostree')) as run,self.assertRaises(subprocess.CalledProcessError):
+            helper.stage(DIGEST,'update')
+        self.assertEqual(run.call_count,1)
+        with patch.object(helper,'status',return_value=[old,boot]),patch.object(helper.subprocess,'run'),self.assertRaises(ValueError):
+            helper.stage(DIGEST,'update')
+
+    def test_replacement_preserves_protected_pending(self):
+        reference = 'ostree-image-signed:docker://ghcr.io/novakiosk/os:latest'
+        boot = deployment('sha256:'+'b'*64,True)
+        auto = dict(deployment('sha256:'+'c'*64), **{'container-image-reference': reference})
+        cases = [('update',[deployment()]), ('update',[auto,auto]),
+                 ('update',[dict(auto, **{'container-image-reference':reference.replace('novakiosk','other')})]),
+                 ('update',[dict(auto, **{'container-image-reference':reference.replace('signed','unverified')})]),
+                 ('rollback',[auto]), ('resume',[auto])]
+        for action,pending in cases:
+            with self.subTest(action=action,pending=pending),patch.object(helper,'status',return_value=[*pending,boot]),patch.object(helper.subprocess,'run') as run,self.assertRaises(ValueError):
+                helper.stage(DIGEST,action)
+            run.assert_not_called()
+
     def test_exact_signed_rebase_and_verify(self):
         boot=deployment('sha256:'+'b'*64,True)
         with patch.object(helper,'status',side_effect=[[boot],[deployment(),boot]]),patch.object(helper.subprocess,'run') as run:

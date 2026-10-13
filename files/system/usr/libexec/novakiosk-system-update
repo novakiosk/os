@@ -175,8 +175,13 @@ def stage(digest, action, repository=REPOSITORY):
     if pending:
         if len(pending) == 1 and matches(pending[0], digest, action, repository):
             return
-        raise ValueError("pending conflict")
-    if matches(booted[0], digest, action, repository):
+        # An explicit Update supersedes a signed automatic-channel deployment
+        # through rpm-ostree itself, without deleting pending state first.
+        if (action != "update" or len(pending) != 1 or
+                signed_reference(pending[0], repository) != ":latest" or
+                not re.fullmatch(r"sha256:[0-9a-f]{64}", pending[0].get("container-image-reference-digest", ""))):
+            raise ValueError("pending conflict")
+    if not pending and matches(booted[0], digest, action, repository):
         return
     reference = "ostree-image-signed:docker://" + repository
     # Native revision override verifies this digest while retaining the latest
