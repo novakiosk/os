@@ -24,7 +24,7 @@ jobs:
       - name: Validate update helper
         run: python3 -m unittest discover -s tests -v
       - name: Build and sign daily OS image
-        uses: blue-build/github-action@c295af864f2802fc6aea227507af43d35823db81 # v1.13
+        uses: blue-build/github-action@fb86c457fd3d0e13d5e9c1875c6305cf28b09234 # v1.14.0
         with:
           recipe: recipe.yml
           cli_version: v0.9.37
